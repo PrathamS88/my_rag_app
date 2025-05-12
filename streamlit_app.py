@@ -72,7 +72,7 @@ def init_chain(docs):
     embed_fn = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
     vectorstore = FAISS.from_texts(texts=texts, embedding=embed_fn, metadatas=metadatas)
     retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
-    llm = GoogleGenerativeAI(model="gemini-pro")
+    llm = GoogleGenerativeAI(model="gemma-3-1b-it")
     return RetrievalQA.from_chain_type(llm=llm, retriever=retriever, return_source_documents=True)
 
 # === Streamlit UI ===
