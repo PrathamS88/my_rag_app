@@ -4,10 +4,11 @@ from git import Repo
 import streamlit as st
 from google.generativeai import embed_content
 import chromadb
+import chromadb.config
+
 from langchain.chains import RetrievalQA
 from langchain.vectorstores import Chroma
 from langchain_google_genai import GoogleGenerativeAI, GoogleGenerativeAIEmbeddings
-import chromadb.config
 
 # Sidebar: clone/update docs
 st.sidebar.title("Configuration")
@@ -34,13 +35,22 @@ def file_hash(path):
 @st.cache_resource
 def init_chain(docs):
     os.environ["GOOGLE_API_KEY"] = st.secrets.google.api_key
-    client = chromadb.Client(chromadb.config.Settings(
-        allow_reset=True,
-        anonymized_telemetry=False,
-        chroma_db_impl="duckdb"
-    ))
+
+    # ✅ Use DuckDB + Parquet instead of SQLite
+    client = chromadb.Client(
+        chromadb.config.Settings(
+            chroma_db_impl="duckdb+parquet",
+            persist_directory=".chroma_store",  # Persist to avoid recomputation
+            anonymized_telemetry=False
+        )
+    )
+
+    # ✅ Remove old broken cache if needed
+    if os.path.exists(".chroma_store_broken"):
+        shutil.rmtree(".chroma_store_broken")
+
     coll = client.get_or_create_collection("gs_docs")
-    
+
     for path in docs:
         h = file_hash(path)
         if coll.get(where={"hash": h})["ids"]:
@@ -60,13 +70,13 @@ def init_chain(docs):
         )
 
     embed_fn = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-    
-    # 👇 tell LangChain to use the same duckdb client
+
+    # ✅ Reuse client with DuckDB backend
     vs = Chroma(
         collection_name="gs_docs",
         embedding_function=embed_fn,
-        client=client,
-        persist_directory=None
+        persist_directory=".chroma_store",
+        client=client
     )
 
     retr = vs.as_retriever(search_kwargs={"k": 5})
