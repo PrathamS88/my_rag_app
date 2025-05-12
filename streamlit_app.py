@@ -7,6 +7,7 @@ import chromadb
 from langchain.chains import RetrievalQA
 from langchain.vectorstores import Chroma
 from langchain_google_genai import GoogleGenerativeAI, GoogleGenerativeAIEmbeddings
+import chromadb.config
 
 # Sidebar: clone/update docs
 st.sidebar.title("Configuration")
@@ -33,7 +34,7 @@ def file_hash(path):
 @st.cache_resource
 def init_chain(docs):
     os.environ["GOOGLE_API_KEY"] = st.secrets.google.api_key
-    client = chromadb.Client()
+    client = chromadb.Client(chromadb.config.Settings(allow_reset=True, anonymized_telemetry=False, chroma_db_impl="duckdb"))
     coll   = client.get_or_create_collection("gs_docs")
     for path in docs:
         h = file_hash(path)
