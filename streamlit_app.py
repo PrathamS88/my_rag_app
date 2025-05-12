@@ -19,33 +19,46 @@ if st.sidebar.button("Refresh docs"):
     st.sidebar.success("Docs refreshed")
 
 # Helpers
-@st.cache_data
-def get_doc_files(base_dir):
-    patterns = ["**/*.md","**/*.mdx","**/*.txt","**/*.rst","**/*.json","**/*.yaml","**/*.yml"]
-    files=[]
-    for p in patterns:
-        files += glob.glob(f"{base_dir}/{p}", recursive=True)
-    return files
-
-def file_hash(path):
-    with open(path,"rb") as f: return hashlib.md5(f.read()).hexdigest()
+from langchain.vectorstores import FAISS
 
 @st.cache_resource
 def init_chain(docs):
     os.environ["GOOGLE_API_KEY"] = st.secrets.google.api_key
-
-    embed_fn = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-
-    texts, metadatas = [], []
+    client = chromadb.Client(chromadb.config.Settings(allow_reset=True, anonymized_telemetry=False, chroma_db_impl="duckdb"))
+    coll   = client.get_or_create_collection("gs_docs")
+    
+    texts = []
+    metadatas = []
+    
     for path in docs:
-        with open(path, "r", errors="ignore") as f:
-            content = f.read()
-        texts.append(content)
+        h = file_hash(path)
+        if coll.get(where={"hash": h})["ids"]:
+            continue
+        coll.delete(where={"path": path})
+        text = open(path, "r", errors="ignore").read()
+        texts.append(text)
         metadatas.append({"path": path})
+        print(f"Loaded content from {path}")  # Debugging line
 
-    vectorstore = FAISS.from_texts(texts=texts, embedding=embed_fn, metadatas=metadatas)
+    # Debugging: Check if texts are loaded
+    print("Loaded texts:", texts)
+    
+    # Embedding function
+    embed_fn = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+    embeddings = embed_fn.embed_documents(texts)
+    
+    # Debugging: Check if embeddings are correctly returned
+    print("Embeddings shape:", embeddings.shape)
+
+    # Creating FAISS vector store
+    if texts:
+        vectorstore = FAISS.from_texts(texts=texts, embedding=embed_fn, metadatas=metadatas)
+    else:
+        raise ValueError("No texts to process.")
+    
     retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
     llm = GoogleGenerativeAI(model="gemma-3-1b-it")
+    
     return RetrievalQA.from_chain_type(llm=llm, retriever=retriever, return_source_documents=True)
 
 # UI
