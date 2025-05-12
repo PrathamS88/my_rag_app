@@ -4,7 +4,7 @@ from git import Repo
 import streamlit as st
 from google.generativeai import embed_content
 from langchain.chains import RetrievalQA
-from langchain.vectorstores import FAISS
+from langchain_community.vectorstores import FAISS
 from langchain_google_genai import GoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain.docstore.document import Document
 
