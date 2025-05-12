@@ -34,19 +34,43 @@ def file_hash(path):
 @st.cache_resource
 def init_chain(docs):
     os.environ["GOOGLE_API_KEY"] = st.secrets.google.api_key
-    client = chromadb.Client(chromadb.config.Settings(allow_reset=True, anonymized_telemetry=False, chroma_db_impl="duckdb"))
-    coll   = client.get_or_create_collection("gs_docs")
+    client = chromadb.Client(chromadb.config.Settings(
+        allow_reset=True,
+        anonymized_telemetry=False,
+        chroma_db_impl="duckdb"
+    ))
+    coll = client.get_or_create_collection("gs_docs")
+    
     for path in docs:
         h = file_hash(path)
-        if coll.get(where={"hash":h})["ids"]: continue
-        coll.delete(where={"path":path})
-        text = open(path,"r",errors="ignore").read()
-        emb  = embed_content(model="models/embedding-001", content=text, task_type="retrieval_document")["embedding"]
-        coll.add(documents=[text], embeddings=[emb], metadatas=[{"path":path,"hash":h}], ids=[h])
+        if coll.get(where={"hash": h})["ids"]:
+            continue
+        coll.delete(where={"path": path})
+        text = open(path, "r", errors="ignore").read()
+        emb = embed_content(
+            model="models/embedding-001",
+            content=text,
+            task_type="retrieval_document"
+        )["embedding"]
+        coll.add(
+            documents=[text],
+            embeddings=[emb],
+            metadatas=[{"path": path, "hash": h}],
+            ids=[h]
+        )
+
     embed_fn = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-    vs       = Chroma(collection_name="gs_docs", embedding_function=embed_fn)
-    retr     = vs.as_retriever(search_kwargs={"k":5})
-    llm      = GoogleGenerativeAI(model="gemma-3-1b-it")
+    
+    # 👇 tell LangChain to use the same duckdb client
+    vs = Chroma(
+        collection_name="gs_docs",
+        embedding_function=embed_fn,
+        client=client,
+        persist_directory=None
+    )
+
+    retr = vs.as_retriever(search_kwargs={"k": 5})
+    llm = GoogleGenerativeAI(model="gemma-3-1b-it")
     return RetrievalQA.from_chain_type(llm=llm, retriever=retr, return_source_documents=True)
 
 # UI
