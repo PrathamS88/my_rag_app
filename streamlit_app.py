@@ -71,7 +71,7 @@ def init_chain(docs):
 
     embed_fn = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
     vectorstore = FAISS.from_texts(texts=texts, embedding=embed_fn, metadatas=metadatas)
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
+    retriever = vectorstore.as_retriever(search_kwargs={"k": 7})
     llm = GoogleGenerativeAI(model="gemini-1.5-flash")
     return RetrievalQA.from_chain_type(llm=llm, retriever=retriever, return_source_documents=True)
 
